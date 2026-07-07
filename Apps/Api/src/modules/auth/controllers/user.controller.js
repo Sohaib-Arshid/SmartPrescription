@@ -123,11 +123,50 @@ const logout = asyncHandler(async (req, res) => {
         secure: true,
     }
 
-    return res 
-    .status(200)
-    .cookie("accessToken", cookieOption)
-    .cookie("refreshToken", cookieOption)
-    .json(
-        new ApiResponse(200 ,{}, "user logout successfully")
-    )
+    return res
+        .status(200)
+        .cookie("accessToken", cookieOption)
+        .cookie("refreshToken", cookieOption)
+        .json(
+            new ApiResponse(200, {}, "user logout successfully")
+        )
+})
+
+const refreshAccessToken = asyncHandler(async (req, res) => {
+
+    const token = req.cookie?.refreshToken || req.body.refreshToken
+
+    if (!token) {
+        throw new ApiError(401, "unauthrized access")
+    }
+
+    const verifyedToken = jwt.veriy(token, proccess.env.REFRESH_TOKEN_SECRET)
+
+    const user = await User.findById(verifyedToken._id).select("+refreshToken");
+
+    if (incomingRefreshToken !== user.refreshToken) {
+        throw new ApiError(401, "Refresh token is expired or used");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+    const cookieOption = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, cookieOption)
+        .cookie("refreshToken", refreshToken, cookieOption)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    accessToken,
+                    refreshToken
+                },
+                "Access token refreshed successfully"
+            )
+        );
 })
