@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/AsyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
-import { User } from "../models/user.models"
+import { User } from "../models/user.models.js"
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -33,14 +33,14 @@ const register = asyncHandler(async (req, res) => {
         throw new ApiError(409, "User already exists");
     }
     const registerdUser = await User.create({
-        name : name.trim(),
-        email : email.trim(),
-        password : password.trim(),
+        name: name.trim(),
+        email: email.trim(),
+        password: password.trim(),
     })
 
-    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id)
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(registerdUser._id)
 
-    const createdUser = await User.findById(registeredUser._id)
+    const createdUser = await User.findById(registerdUser._id)
         .select("-password -refreshToken")
 
     if (!createdUser) {
@@ -50,7 +50,8 @@ const register = asyncHandler(async (req, res) => {
     const cookieOption = {
         httpOnly: true,
         secure: true,
-        sameSite: "strict"
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000
     }
 
     return res.status(201)
@@ -77,9 +78,9 @@ const login = asyncHandler(async (req, res) => {
         throw new ApiError(401, "user not exist")
     }
 
-    const isPasswordCorect = await user.isPasswordCorect(password)
+    const isPasswordCorrect = await user.isPasswordCorrect(password)
 
-    if (!isPasswordCorect) {
+    if (!isPasswordCorrect) {
         throw new ApiError(403, "Invalid credentials");
     }
 
@@ -90,7 +91,8 @@ const login = asyncHandler(async (req, res) => {
     const cookieOption = {
         httpOnly: true,
         secure: true,
-        sameSite: "strict"
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000
     }
 
     return res
@@ -103,4 +105,29 @@ const login = asyncHandler(async (req, res) => {
                 refreshToken,
                 "user loged in successfully")
         )
+})
+
+const logout = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $unset: { accessToken: 1 }
+        },
+        {
+            new: true
+        }
+    )
+
+    const cookieOption = {
+        httpOnly: true,
+        secure: true,
+    }
+
+    return res 
+    .status(200)
+    .cookie("accessToken", cookieOption)
+    .cookie("refreshToken", cookieOption)
+    .json(
+        new ApiResponse(200 ,{}, "user logout successfully")
+    )
 })
