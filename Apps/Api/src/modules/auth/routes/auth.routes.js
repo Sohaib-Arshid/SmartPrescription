@@ -7,13 +7,13 @@ import {
     getCurrentUser,
     updatePassword,
     updateAccountDetailes
-} from "../Controllers/auth.controller.js";
+} from "../controllers/user.controller.js";
 
 import { verifyJWT } from "../../../middlewares/auth.middleware.js";
 
-const router = router()
+const router = Router()
 
-router.route("/register").post(register);
+router.route("/register").post(register); 
 router.route("/login").post(login);
 router.route("/logout").post(verifyJWT,logout);
 router.route("/refresh-token").post(refreshAccessToken);

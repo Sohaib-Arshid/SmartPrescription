@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/AsyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
-import { User } from "../models/user.models"
+import { User } from "../models/user.models.js"
 import jwt from "jsonwebtoken"
 const verifyJWT = asyncHandler(async (req, res,next) => {
 
@@ -35,14 +35,6 @@ const verifyJWT = asyncHandler(async (req, res,next) => {
         
         throw new ApiError(401, error?.message, "invalid accesss");
     }
-
-    // return res
-    //     .status(200)
-    //     .json(
-    //         new ApiResponse(
-    //             200,
-    //             updatedPlaylist,
-    //             "middleware work successfully"
-    //         )
-    //     );
 })
+
+export {verifyJWT}

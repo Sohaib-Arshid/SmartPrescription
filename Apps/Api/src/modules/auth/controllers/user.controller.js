@@ -222,4 +222,4 @@ const updateAccountDetailes = asyncHandler(async (req, res) => {
     )
 })
 
-export { register, login, logout, getCurrentUser, updatePassword ,updateAccountDetailes }
+export { register, login, logout, getCurrentUser, updatePassword ,updateAccountDetailes ,refreshAccessToken}
