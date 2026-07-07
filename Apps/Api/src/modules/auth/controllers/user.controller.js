@@ -170,3 +170,56 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             )
         );
 })
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            req.user,
+            "Current user fetched successfully"
+        )
+    )
+})
+
+const updatePassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body
+
+    if (!oldPassword || !newPassword) {
+        throw new ApiError(400, "old Password and new password are required")
+    }
+
+    const user = await User.findById(req.user._id)
+    if (!user) {
+        throw new ApiError(401, "this user not exist")
+    }
+
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
+
+    if (!isPasswordCorrect) {
+        throw new ApiError(401, "invalid credentials")
+    }
+
+    user.password = newPassword
+    await user.save();
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, "password change successfully")
+        )
+})
+
+const updateAccountDetailes = asyncHandler(async (req, res) => {
+    const { name, email } = req.body
+
+    if (!name || !email) {
+        throw new ApiError(400, "Email or password are required")
+    }
+
+    const user = await User.findByIdAndUpdate(req.user?._id, { $set: { name, email } }, { new: true }).select("-password")
+    return res.status(200).json(
+        new ApiResponse(200, user, "Account details updated successfully")
+    )
+})
+
+export { register, login, logout, getCurrentUser, updatePassword ,updateAccountDetailes }
