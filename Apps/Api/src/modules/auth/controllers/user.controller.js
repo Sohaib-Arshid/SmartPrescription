@@ -2,7 +2,6 @@ import { asyncHandler } from "../utils/AsyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import { User } from "../models/user.models"
-import { use } from "react"
 
 const generateAccessAndRefreshToken = async (userId) => {
     try {
@@ -28,17 +27,18 @@ const register = asyncHandler(async (req, res) => {
         throw new ApiError(403, "these fields are required")
     }
 
-    const registerUser = await User.create({
-        name,
-        email,
-        password,
-        role
-    })
-
     const existing = await User.findOne({ email })
+
     if (existing) {
         throw new ApiError(409, "User already exists");
     }
+    const registerdUser = await User.create({
+        name : name.trim(),
+        email : email.trim(),
+        password : password.trim(),
+    })
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id)
 
     const createdUser = await User.findById(registeredUser._id)
         .select("-password -refreshToken")
@@ -47,9 +47,21 @@ const register = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Something went wrong while registering the user")
     }
 
-    return res.status(201).json(
-        new ApiResponse(201, createdUser, "User registered successfully")
-    )
+    const cookieOption = {
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict"
+    }
+
+    return res.status(201)
+        .cookie("accessToken", accessToken, cookieOption)
+        .cookie("refreshToken", refreshToken, cookieOption)
+        .json(
+            new ApiResponse(201, createdUser,
+                accessToken,
+                refreshToken,
+                "User registered successfully")
+        )
 })
 
 const login = asyncHandler(async (req, res) => {
@@ -59,13 +71,13 @@ const login = asyncHandler(async (req, res) => {
         throw new ApiError(403, "these fields are required")
     }
 
-    const user = await User.findById({ email })
+    const user = await User.findOne({ email }).select("+refreshToken")
 
     if (!user) {
         throw new ApiError(401, "user not exist")
     }
 
-    const isPasswordCorect = await User.isPasswordCorect(password)
+    const isPasswordCorect = await user.isPasswordCorect(password)
 
     if (!isPasswordCorect) {
         throw new ApiError(403, "Invalid credentials");
@@ -82,11 +94,13 @@ const login = asyncHandler(async (req, res) => {
     }
 
     return res
-    .status(200)
-    .cookie("accessToken" , accessToken , cookieOption)
-    .cookie("refreshToken" , refreshToken , cookieOption)
-    .json(
-        new ApiResponse(201 , logedinUser, "user loged in successfully")
-    )
+        .status(201)
+        .cookie("accessToken", accessToken, cookieOption)
+        .cookie("refreshToken", refreshToken, cookieOption)
+        .json(
+            new ApiResponse(201, logedinUser,
+                accessToken,
+                refreshToken,
+                "user loged in successfully")
+        )
 })
-
