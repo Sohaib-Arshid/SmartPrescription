@@ -6,6 +6,6 @@ import {uploadPrescription} from "../controllers/prescription.controller.js"
 
 const router = Router()
 
-router.route("/upload").post(verifyJWT ,upload.single(Prescription) , uploadPrescription)
+router.route("/upload").post(verifyJWT ,upload.single("prescription") , uploadPrescription)
 
 export default router

@@ -44,3 +44,5 @@ const uploadPrescription = asyncHandler(async (req, res) => {
             )
         )
 })
+
+export {uploadPrescription}
