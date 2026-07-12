@@ -40,3 +40,5 @@ const worker = new Worker(
     connection: redis
 }
 )
+
+export {worker}

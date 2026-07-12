@@ -23,7 +23,7 @@ const uploadPrescription = asyncHandler(async (req, res) => {
     const uploadFile = await uploadOnCloudinary(imageFile)
 
     if (!uploadFile) {
-        throw new Error(500, "Error in uploading on  cloudinary");
+        throw new ApiError(500, "Error in uploading on  cloudinary");
     }
 
     const imageUrl = uploadFile?.url
@@ -37,15 +37,21 @@ const uploadPrescription = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Failed to create prescription");
     }
 
-    const jobAdd = await addPrescriptionJob(prescription._id, prescription.imageUrl)
+    await addPrescriptionJob(prescription._id, prescription.imageUrl)
 
     return res
-        .status(200)
+        .status(202)
         .json(
             new ApiResponse(
-                200, prescription, "prescription created successfully"
+                200,
+                {
+                    id: prescription._id,
+                    status: prescription.status,
+                    message: "Processing started"
+                },
+                "prescription created successfully"
             )
         )
 })
 
-export {uploadPrescription}
+export { uploadPrescription }
