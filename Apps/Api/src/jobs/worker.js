@@ -1,7 +1,6 @@
-import { redis } from "../config/redis";
+import { redis } from "../config/redis.js";
 import { Worker } from "bullmq";
-import { Prescription } from "../models/prescription.models";
-import { ApiError } from "../../../utils/ApiError.js"
+import { Prescription } from "../models/prescription.models.js";
 import { processPrescription } from "../services/ml/mockML.js"
 
 const worker = new Worker(
@@ -10,9 +9,7 @@ const worker = new Worker(
         const { prescriptionId } = job.data
 
         const prescription = await Prescription.findById(prescriptionId)
-        if (!prescription) {
-            throw new ApiError(401, null, "prescription not found")
-        }
+
         prescription.status = "PROCESSING",
             prescription.progress = 20
         await prescription.save()
