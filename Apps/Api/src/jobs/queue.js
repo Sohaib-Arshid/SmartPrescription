@@ -8,4 +8,10 @@ const prescriptionQueue = new Queue(
     }
 )
 
+export const addPrescriptionJob = async (prescriptionId , imageUrl)=>{
+    return await prescriptionQueue.add("process", {
+        prescriptionId,
+        imageUrl
+    })
+}
 export { prescriptionQueue };

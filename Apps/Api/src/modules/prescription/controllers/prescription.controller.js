@@ -5,6 +5,7 @@ import { User } from "../../../models/user.models.js"
 import { Prescription } from "../../../models/prescription.models.js"
 import jwt from "jsonwebtoken";
 import { uploadOnCloudinary } from "../../../utils/uploadOnCloudinary.js"
+import { addPrescriptionJob } from "../../../jobs/queue.js"
 
 const uploadPrescription = asyncHandler(async (req, res) => {
     const user = req.user
@@ -35,6 +36,8 @@ const uploadPrescription = asyncHandler(async (req, res) => {
     if (!prescription) {
         throw new ApiError(500, "Failed to create prescription");
     }
+
+    const jobAdd = await addPrescriptionJob(prescription._id, prescription.imageUrl)
 
     return res
         .status(200)
