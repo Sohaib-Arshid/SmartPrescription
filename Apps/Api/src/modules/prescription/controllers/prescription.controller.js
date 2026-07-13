@@ -142,35 +142,35 @@ const conformPrescription = asyncHandler(async (req, res) => {
 
 const getAllPrescriptions = asyncHandler(async (req, res) => {
     const userId = req.user._id
-    
-    const { 
-        page = 1, 
-        limit = 10, 
-        sortBy = "createdAt", 
-        sortType = "desc" 
+
+    const {
+        page = 1,
+        limit = 10,
+        sortBy = "createdAt",
+        sortType = "desc"
     } = req.query
-    
+
     const pageNum = parseInt(page)
     const limitNum = parseInt(limit)
     const skip = (pageNum - 1) * limitNum
-    
+
     const sortOrder = sortType === "asc" ? 1 : -1
     const sortStage = { [sortBy]: sortOrder }
-    
+
     const prescriptions = await Prescription
-        .find({ 
-            user: userId, 
-            isDeleted: false 
+        .find({
+            user: userId,
+            isDeleted: false
         })
         .sort(sortStage)
         .skip(skip)
         .limit(limitNum)
-    
-    const total = await Prescription.countDocuments({ 
-        user: userId, 
-        isDeleted: false 
+
+    const total = await Prescription.countDocuments({
+        user: userId,
+        isDeleted: false
     })
-    
+
     return res.status(200).json(
         new ApiResponse(200, {
             prescriptions,
@@ -182,4 +182,53 @@ const getAllPrescriptions = asyncHandler(async (req, res) => {
     )
 })
 
-export { uploadPrescription, getPrescriptionStatus, conformPrescription, getAllPrescriptions }
+const retry = asyncHandler(async (req, res) => {
+    const prescriptionId = req.params.id
+    if (!prescriptionId) {
+        throw new ApiError(401, "prescriptionId not found")
+    }
+
+    const user = req.user
+    if (!user) {
+        throw new ApiError(401, "unauthorized")
+    }
+
+    const prescription = await Prescription.findOne({
+        _id: prescriptionId,
+        isDeleted: false
+    })
+
+    if (!prescription) {
+        throw new ApiError(404, "prescription not found")
+    }
+
+    if (prescription.user.toString() !== user._id.toString()) {
+        throw new ApiError(403, "Unauthorized")
+    }
+
+    if (prescription.status === "COMPLETED" || prescription.status === "PENDING") {
+        throw new ApiError(400, "Only failed prescriptions can be retried")
+    }
+
+    if (prescription.retryCount >= 3) {
+        throw new ApiError(400, "Max retry limit exceeded (3)")
+    }
+
+    prescription.status = "PENDING"
+    prescription.progress = 0
+    prescription.errorMessage = null
+    await prescription.save()
+
+    await addPrescriptionJob(prescription._id, prescription.imageUrl)
+
+    return res.status(202).json(
+        new ApiResponse(202, {
+            id: prescription._id,
+            status: "PENDING",
+            message: "Retry started"
+        }, "Prescription retry initiated")
+    )
+
+})
+
+export { uploadPrescription, getPrescriptionStatus, conformPrescription, getAllPrescriptions, retry }
