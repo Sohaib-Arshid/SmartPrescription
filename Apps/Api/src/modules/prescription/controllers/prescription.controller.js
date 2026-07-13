@@ -140,4 +140,46 @@ const conformPrescription = asyncHandler(async (req, res) => {
         )
 })
 
-export { uploadPrescription, getPrescriptionStatus, conformPrescription }
+const getAllPrescriptions = asyncHandler(async (req, res) => {
+    const userId = req.user._id
+    
+    const { 
+        page = 1, 
+        limit = 10, 
+        sortBy = "createdAt", 
+        sortType = "desc" 
+    } = req.query
+    
+    const pageNum = parseInt(page)
+    const limitNum = parseInt(limit)
+    const skip = (pageNum - 1) * limitNum
+    
+    const sortOrder = sortType === "asc" ? 1 : -1
+    const sortStage = { [sortBy]: sortOrder }
+    
+    const prescriptions = await Prescription
+        .find({ 
+            user: userId, 
+            isDeleted: false 
+        })
+        .sort(sortStage)
+        .skip(skip)
+        .limit(limitNum)
+    
+    const total = await Prescription.countDocuments({ 
+        user: userId, 
+        isDeleted: false 
+    })
+    
+    return res.status(200).json(
+        new ApiResponse(200, {
+            prescriptions,
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.ceil(total / limitNum)
+        }, "Prescriptions fetched successfully")
+    )
+})
+
+export { uploadPrescription, getPrescriptionStatus, conformPrescription, getAllPrescriptions }
