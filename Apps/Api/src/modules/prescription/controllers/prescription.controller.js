@@ -37,13 +37,13 @@ const uploadPrescription = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Failed to create prescription");
     }
 
-    await addPrescriptionJob(prescription._id, prescription.imageUrl)
+    await addPrescriptionJob(prescription._id , prescription.imageUrl)
 
     return res
         .status(202)
         .json(
             new ApiResponse(
-                200,
+                202,
                 {
                     id: prescription._id,
                     status: prescription.status,
