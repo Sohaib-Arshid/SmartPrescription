@@ -59,12 +59,12 @@ const getPrescriptionStatus = asyncHandler(async (req, res) => {
     if (!prescriptionId) {
         throw new ApiError(401, "prescriptionId not found")
     }
-    
+
     const user = req.user
     if (!user) {
         throw new ApiError(401, "unauthorized")
     }
-    
+
     const prescription = await Prescription.findOne({
         _id: prescriptionId,
         isDeleted: false
@@ -91,4 +91,53 @@ const getPrescriptionStatus = asyncHandler(async (req, res) => {
         )
 })
 
-export { uploadPrescription, getPrescriptionStatus }
+const conformPrescription = asyncHandler(async (req, res) => {
+    const prescriptionId = req.params.id
+    if (!prescriptionId) {
+        throw new ApiError(401, "prescriptionId not found")
+    }
+
+    const user = req.user
+    if (!user) {
+        throw new ApiError(401, "unauthorized")
+    }
+
+    const prescription = await Prescription.findOne({
+        _id: prescriptionId,
+        isDeleted: false
+    })
+
+    if (!prescription) {
+        throw new ApiError(404, "prescription not found")
+    }
+
+    if (prescription.user.toString() !== user._id.toString()) {
+        throw new ApiError(403, "Unauthorized")
+    }
+
+    if (prescription.status !== "COMPLETED") {
+        throw new ApiError(400, "Prescription not processed yet")
+    }
+
+    const { medicines } = req.body
+    if (!medicines || !Array.isArray(medicines) || medicines.length === 0) {
+        throw new ApiError(400, "Medicines array required")
+    }
+
+    prescription.medicines = medicines
+    prescription.reviewedByUser = true
+    await prescription.save()
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, {
+                id: prescription._id,
+                reviewedByUser: true,
+                medicines: prescription.medicines
+            },
+                "conformed by user")
+        )
+})
+
+export { uploadPrescription, getPrescriptionStatus, conformPrescription }
