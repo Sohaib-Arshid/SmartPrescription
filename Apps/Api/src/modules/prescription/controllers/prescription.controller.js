@@ -37,7 +37,7 @@ const uploadPrescription = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Failed to create prescription");
     }
 
-    await addPrescriptionJob(prescription._id , prescription.imageUrl)
+    await addPrescriptionJob(prescription._id, prescription.imageUrl)
 
     return res
         .status(202)
@@ -54,4 +54,41 @@ const uploadPrescription = asyncHandler(async (req, res) => {
         )
 })
 
-export { uploadPrescription }
+const getPrescriptionStatus = asyncHandler(async (req, res) => {
+    const prescriptionId = req.params.id
+    if (!prescriptionId) {
+        throw new ApiError(401, "prescriptionId not found")
+    }
+    
+    const user = req.user
+    if (!user) {
+        throw new ApiError(401, "unauthorized")
+    }
+    
+    const prescription = await Prescription.findOne({
+        _id: prescriptionId,
+        isDeleted: false
+    })
+
+    if (!prescription) {
+        throw new ApiError(404, "prescription not found")
+    }
+
+    if (prescription.user.toString() !== user._id.toString()) {
+        throw new ApiError(403, "Unauthorized")
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, {
+                id: prescription._id,
+                status: prescription.status,
+                progress: prescription.progress,
+                medicines: prescription.medicines,
+                reviewedByUser: prescription.reviewedByUser
+            }, "Prescription status fetched")
+        )
+})
+
+export { uploadPrescription, getPrescriptionStatus }
