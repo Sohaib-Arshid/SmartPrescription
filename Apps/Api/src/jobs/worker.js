@@ -1,7 +1,7 @@
 import { redis } from "../config/redis.js";
 import { Worker } from "bullmq";
 import { Prescription } from "../models/prescription.models.js";
-import { processPrescription } from "../services/ml/mockML.js"
+import { processPrescription } from "../services/ml/ml.service.js"
 
 const worker = new Worker(
     "prescription-processing",
@@ -15,10 +15,10 @@ const worker = new Worker(
             prescription.status = "PROCESSING"
             prescription.progress = 20
             await prescription.save()
-            const result = await processPrescription(prescription.imageUrl)
-            prescription.medicines = result.medicines
-            prescription.rawText = result.rawText
-            prescription.confidenceScore = result.confidenceScore
+            const result = await processPrescription(prescription.imageUrl , prescription._id.toString())
+            // prescription.medicines = result.medicines
+            // prescription.rawText = result.rawText
+            // prescription.confidenceScore = result.confidenceScore
             prescription.status = "COMPLETED"
             prescription.progress = 100
             await prescription.save()

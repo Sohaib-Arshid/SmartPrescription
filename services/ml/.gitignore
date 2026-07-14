@@ -1,0 +1,120 @@
+# ==============================
+# Byte-compiled / cache files
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==============================
+# Virtual Environments
+# ==============================
+venv/
+env/
+.venv/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
+# ==============================
+# Environment Variables
+# ==============================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ==============================
+# Distribution / Packaging
+# ==============================
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# ==============================
+# Logs
+# ==============================
+logs/
+*.log
+
+# ==============================
+# Testing / Coverage
+# ==============================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# ==============================
+# Type Checking / Linting
+# ==============================
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# ==============================
+# Jupyter Notebook
+# ==============================
+.ipynb_checkpoints/
+
+# ==============================
+# Database
+# ==============================
+*.sqlite3
+*.db
+
+# ==============================
+# Uploads / Temp Files
+# ==============================
+tmp/
+temp/
+uploads/temp/
+media/temp/
+
+# ==============================
+# OS Generated Files
+# ==============================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==============================
+# Editor / IDE
+# ==============================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+# ==============================
+# Docker
+# ==============================
+docker-compose.override.yml
+*.pid
+
+# ==============================
+# Alembic (agar migrations use kar rahe ho)
+# ==============================
+# alembic/versions/*.pyc
+
+# ==============================
+# Misc
+# ==============================
+*.bak
+*.tmp
+.pypirc
