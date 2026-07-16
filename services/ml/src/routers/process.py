@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
+from src.utils.image import download_image
 
 router = APIRouter()
 
@@ -9,10 +10,12 @@ class ProcessRequest(BaseModel):
 
 @router.post("/process")
 def process(request: ProcessRequest):
-    print(request)
+
+    image_path = download_image(request.imageUrl)
+
+    print(image_path)
 
     return {
         "status": "success",
-        "prescriptionId": request.prescriptionId,
-        "imageUrl": request.imageUrl
+        "path": image_path
     }
