@@ -22,7 +22,8 @@ const worker = new Worker(
             prescription.status = "COMPLETED"
             prescription.progress = 100
             await prescription.save()
-
+            console.log(result);
+            
         } catch (error) {
             console.error("❌ Job failed:", error.message)
             console.error(error.stack)
