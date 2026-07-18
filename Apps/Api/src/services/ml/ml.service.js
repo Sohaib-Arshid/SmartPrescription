@@ -1,13 +1,11 @@
-import axios from "axios";
+import axios from 'axios';
 
-const processPrescription = async (imageUrl, prescriptionId) => {
-    const response = await axios.post(`${process.env.ML_SERVICE_URL}/process`,
-        {
-            imageUrl,
-            prescriptionId
-        }
-    )
-    return response.data
-}
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001';
 
-export {processPrescription}
+export const processPrescription = async (imageUrl, prescriptionId) => {
+    const response = await axios.post(`${ML_SERVICE_URL}/api/v1/process`, {
+        imageUrl,
+        prescriptionId
+    });
+    return response.data;
+};

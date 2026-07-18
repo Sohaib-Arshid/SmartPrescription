@@ -16,13 +16,14 @@ const worker = new Worker(
             prescription.progress = 20
             await prescription.save()
             const result = await processPrescription(prescription.imageUrl , prescription._id.toString())
-            // prescription.medicines = result.medicines
-            // prescription.rawText = result.rawText
-            // prescription.confidenceScore = result.confidenceScore
+            prescription.medicines = result.medicines
+            prescription.rawText = result.rawText
+            prescription.confidenceScore = result.confidenceScore
             prescription.status = "COMPLETED"
             prescription.progress = 100
             await prescription.save()
-
+            console.log(result);
+            
         } catch (error) {
             console.error("❌ Job failed:", error.message)
             console.error(error.stack)
