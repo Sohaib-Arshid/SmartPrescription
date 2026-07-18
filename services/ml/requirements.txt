@@ -3,3 +3,9 @@ uvicorn[standard]==0.30.0
 python-multipart==0.0.9
 requests==2.32.0
 python-dotenv==1.0.0
+
+opencv-contrib-python==4.10.0.84
+numpy==2.3.5
+
+paddlepaddle==3.1.1
+paddleocr==3.2.0
