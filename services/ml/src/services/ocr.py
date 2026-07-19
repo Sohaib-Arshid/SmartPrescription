@@ -1,32 +1,15 @@
+import gc
+import logging
 import os
 import traceback
 
+import cv2
 from paddleocr import PaddleOCR
 
-# ---------------------------------------------------------------------------
-# Singleton PaddleOCR instance.
-#
-# WHY A SINGLETON:
-# PaddleOCR wraps a PaddlePaddle C++ inference predictor. Constructing and
-# destroying it per-request causes two problems:
-#
-#   1. MEMORY CORRUPTION / RuntimeError: Unknown exception
-#      Calling `del ocr` drops the Python reference but the underlying C++
-#      predictor (thread pools, memory arenas, operator registry) does NOT
-#      fully release. Each cycle leaves residual C++ heap state. After enough
-#      requests the process either OOMs or the inference engine is left in a
-#      corrupt state, producing RuntimeError or OpenCV OutOfMemoryError.
-#
-#   2. ECONNRESET FROM NODE
-#      Constructing PaddleOCR takes 2–6 s per request (model loading + C++
-#      predictor init). That overhead pushes response time high enough that
-#      Node's HTTP timeout fires and drops the connection mid-request.
-#
-# The singleton is created once at startup (loaded with the FastAPI app) and
-# reused for every request. `ocr.predict()` is safe to call repeatedly on
-# the same instance — the C++ predictor holds no mutable state between calls.
-# ---------------------------------------------------------------------------
-_ocr = PaddleOCR(
+logger = logging.getLogger(__name__)
+
+# Load only once
+ocr = PaddleOCR(
     text_detection_model_name="PP-OCRv5_mobile_det",
     text_recognition_model_name="PP-OCRv5_mobile_rec",
     use_doc_orientation_classify=False,
@@ -37,46 +20,84 @@ _ocr = PaddleOCR(
 
 
 def _normalize_path(path: str) -> str:
-    # PaddleOCR's C++ engine on Windows raises RuntimeError: Unknown exception
-    # when the path contains backslashes or mixed separators produced by
-    # os.path.join (e.g. 'd:/temp\\processed.jpg').
     return path.replace("\\", "/")
 
 
-def _validate_image(image_path: str) -> None:
-    import cv2
-
+def _validate_image(image_path: str):
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
 
     if os.path.getsize(image_path) == 0:
-        raise ValueError(f"Image file is empty: {image_path}")
+        raise ValueError("Image is empty")
 
     img = cv2.imread(image_path)
+
     if img is None:
-        raise ValueError(f"Cannot decode image (corrupt or unsupported format): {image_path}")
+        raise ValueError("Unable to read image")
 
     h, w = img.shape[:2]
-    if h < 10 or w < 10:
-        raise ValueError(f"Image is too small for OCR ({w}x{h}px): {image_path}")
+
+    if h < 20 or w < 20:
+        raise ValueError("Image too small")
+
+    return img
 
 
 def extract_text(image_path: str) -> str:
     image_path = _normalize_path(image_path)
+
     _validate_image(image_path)
 
-    try:
-        result = _ocr.predict(image_path)
+    last_exception = None
 
-        texts = []
-        for page in result:
-            for text in page.get("rec_texts", []):
-                text = text.strip()
-                if text:
+    for attempt in range(2):
+
+        try:
+
+            result = ocr.predict(image_path)
+
+            texts = []
+
+            for page in result:
+
+                rec_texts = page.get("rec_texts", [])
+                rec_scores = page.get("rec_scores", [])
+
+                for text, score in zip(rec_texts, rec_scores):
+
+                    text = text.strip()
+
+                    if not text:
+                        continue
+
+                    # Ignore very low confidence text
+                    if score < 0.50:
+                        continue
+
                     texts.append(text)
 
-        return " ".join(texts).strip()
+            # Remove duplicates while preserving order
+            texts = list(dict.fromkeys(texts))
 
-    except Exception as exc:
-        traceback.print_exc()
-        raise RuntimeError(f"PaddleOCR inference failed: {type(exc).__name__}: {exc}") from exc
+            gc.collect()
+
+            return " ".join(texts).strip()
+
+        except Exception as e:
+
+            last_exception = e
+
+            logger.warning(
+                "OCR attempt %s failed: %s",
+                attempt + 1,
+                str(e),
+            )
+
+            traceback.print_exc()
+
+            gc.collect()
+
+    raise RuntimeError(
+        f"PaddleOCR failed after 2 attempts.\n"
+        f"{type(last_exception).__name__}: {last_exception}"
+    )
