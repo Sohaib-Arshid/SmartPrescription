@@ -28,14 +28,26 @@ def parse_prescription(raw_text: str) -> dict[str, Any]:
             input=prompt,
             temperature=0,
         )
-    except OpenAIError as e:
-        logger.error("OpenAI request failed: %s", e)
-        raise PrescriptionParseError("Failed to get a response from GPT") from e
 
-    output = response.output_text.strip()
+        output = response.output_text.strip()
 
-    try:
+        if not output:
+            raise PrescriptionParseError("GPT returned an empty response.")
+
         return json.loads(output)
+
     except json.JSONDecodeError as e:
-        logger.error("GPT returned invalid JSON: %s", output)
-        raise PrescriptionParseError(f"GPT returned invalid JSON:\n{output}") from e
+        logger.exception("Invalid JSON returned by GPT")
+        raise PrescriptionParseError(
+            "GPT returned invalid JSON."
+        ) from e
+
+    except OpenAIError as e:
+        logger.exception("OpenAI API Error")
+        raise PrescriptionParseError(
+            "Failed to communicate with OpenAI."
+        ) from e
+
+    except Exception as e:
+        logger.exception("Unexpected GPT parsing error")
+        raise PrescriptionParseError(str(e)) from e
