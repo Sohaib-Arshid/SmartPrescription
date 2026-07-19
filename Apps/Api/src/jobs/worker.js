@@ -40,6 +40,8 @@ const worker = new Worker(
             prescription.progress = 100;
 
             await prescription.save();
+            console.log(result);
+            
 
             console.log("Prescription Processed Successfully");
         } catch (error) {

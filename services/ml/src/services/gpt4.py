@@ -26,7 +26,6 @@ def parse_prescription(raw_text: str) -> dict[str, Any]:
         response = client.responses.create(
             model="gpt-5-mini",
             input=prompt,
-            temperature=0,
         )
 
         output = response.output_text.strip()
