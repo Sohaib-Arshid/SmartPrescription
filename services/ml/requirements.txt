@@ -9,3 +9,5 @@ numpy==2.3.5
 
 paddlepaddle==3.1.1
 paddleocr==3.2.0
+
+openai>=1.98.0
