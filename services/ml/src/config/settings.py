@@ -5,7 +5,7 @@ load_dotenv()
 
 PORT = os.getenv("PORT", 8001)
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY is missing.")
+if not GROQ_API_KEY:
+    raise ValueError("GROQ_API_KEY is missing.")

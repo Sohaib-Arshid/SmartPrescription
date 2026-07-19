@@ -2,14 +2,14 @@ import json
 import logging
 from typing import Any
 
-from openai import OpenAI, OpenAIError
+from groq import Groq
 
-from src.config.settings import OPENAI_API_KEY
+from src.config.settings import GROQ_API_KEY
 from src.services.prompt import build_prompt
 
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = Groq(api_key=GROQ_API_KEY)
 
 
 class PrescriptionParseError(Exception):
@@ -23,30 +23,39 @@ def parse_prescription(raw_text: str) -> dict[str, Any]:
     prompt = build_prompt(raw_text)
 
     try:
-        response = client.responses.create(
-            model="gpt-5-mini",
-            input=prompt,
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert medical prescription parser. "
+                        "Return ONLY valid JSON. Never explain anything."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            response_format={"type": "json_object"},
         )
 
-        output = response.output_text.strip()
+        output = response.choices[0].message.content.strip()
 
         if not output:
-            raise PrescriptionParseError("GPT returned an empty response.")
+            raise PrescriptionParseError("Groq returned an empty response.")
 
         return json.loads(output)
 
     except json.JSONDecodeError as e:
-        logger.exception("Invalid JSON returned by GPT")
+        logger.exception("Invalid JSON returned by Groq")
         raise PrescriptionParseError(
-            "GPT returned invalid JSON."
-        ) from e
-
-    except OpenAIError as e:
-        logger.exception("OpenAI API Error")
-        raise PrescriptionParseError(
-            "Failed to communicate with OpenAI."
+            "Groq returned invalid JSON."
         ) from e
 
     except Exception as e:
-        logger.exception("Unexpected GPT parsing error")
-        raise PrescriptionParseError(str(e)) from e
+        logger.exception("Groq API Error")
+        raise PrescriptionParseError(
+            f"Failed to communicate with Groq: {e}"
+        ) from e
