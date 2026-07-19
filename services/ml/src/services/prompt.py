@@ -39,7 +39,9 @@ Return JSON in this format:
     "follow_up": null
 }}
 OCR TEXT:
+
 {raw_text}
+
 """)
 
 
