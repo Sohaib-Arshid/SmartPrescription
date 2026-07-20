@@ -4,9 +4,9 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from src.utils.image import download_image, cleanup_image
-from src.services.preprocess import preprocess_image
+from services.ml.src.services.preprocess.preprocess import preprocess_image
 from src.services.ocr.comparator import compare_ocr
-from src.services.gpt4 import parse_prescription
+from services.ml.src.services.parser.groq import parse_prescription
 
 router = APIRouter()
 
