@@ -6,11 +6,9 @@ import easyocr
 
 logger = logging.getLogger(__name__)
 
-# Create reader once
-reader = easyocr.Reader(
-    ["en"],
-    gpu=False,
-)
+_reader = easyocr.Reader(["en"], gpu=False)
+
+MIN_CONFIDENCE = 0.35
 
 
 def _normalize_path(path: str) -> str:
@@ -24,37 +22,27 @@ def _validate_image(image_path: str) -> None:
     if os.path.getsize(image_path) == 0:
         raise ValueError(f"Image is empty: {image_path}")
 
-    image = cv2.imread(image_path)
-
-    if image is None:
+    if cv2.imread(image_path) is None:
         raise ValueError(f"Unable to decode image: {image_path}")
 
 
 def extract_text(image_path: str) -> str:
     image_path = _normalize_path(image_path)
-
     _validate_image(image_path)
 
     try:
-        result = reader.readtext(
-            image_path,
-            detail=1,
-            paragraph=True,
-        )
+        # detail=1 always returns (bbox, text, confidence) regardless of paragraph mode.
+        # paragraph=False preserves per-word confidence so we can filter low-quality reads.
+        results = _reader.readtext(image_path, detail=1, paragraph=False)
 
-        texts = []
-
-        for item in result:
-            text = item[1].strip()
-
-            if text:
-                texts.append(text)
+        texts = [
+            text.strip()
+            for _, text, confidence in results
+            if text.strip() and confidence >= MIN_CONFIDENCE
+        ]
 
         return " ".join(texts)
 
     except Exception as e:
-        logger.exception("EasyOCR failed")
-
-        raise RuntimeError(
-            f"EasyOCR failed: {type(e).__name__}: {e}"
-        ) from e
+        logger.exception("EasyOCR failed on %s", image_path)
+        raise RuntimeError(f"EasyOCR failed: {type(e).__name__}: {e}") from e

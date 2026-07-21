@@ -70,8 +70,9 @@ def extract_text(image_path: str) -> str:
                     if not text:
                         continue
 
-                    # Ignore very low confidence text
-                    if score < 0.50:
+                    # Handwritten prescriptions produce lower confidence scores;
+                    # 0.35 retains borderline-legible text without drowning in noise.
+                    if score < 0.35:
                         continue
 
                     texts.append(text)

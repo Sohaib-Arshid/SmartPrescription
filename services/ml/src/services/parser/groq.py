@@ -5,7 +5,7 @@ from typing import Any
 from groq import Groq
 
 from src.config.settings import GROQ_API_KEY
-from services.ml.src.services.parser.prompt import build_prompt
+from src.services.parser.prompt import build_prompt
 
 logger = logging.getLogger(__name__)
 
