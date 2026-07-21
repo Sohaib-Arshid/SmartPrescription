@@ -1,14 +1,31 @@
 import logging
 import os
+import threading
 
 import cv2
 import easyocr
 
 logger = logging.getLogger(__name__)
 
-_reader = easyocr.Reader(["en"], gpu=False)
-
 MIN_CONFIDENCE = 0.35
+
+# Lazy singleton — EasyOCR takes 30+ seconds and ~500 MB to initialize.
+# Loading it at import time would block FastAPI startup and, when combined
+# with PaddleOCR loading simultaneously, causes OpenBLAS OOM on CPU-only
+# machines. We initialize on first use and protect with a lock.
+_reader: easyocr.Reader | None = None
+_reader_lock = threading.Lock()
+
+
+def _get_reader() -> easyocr.Reader:
+    global _reader
+    if _reader is None:
+        with _reader_lock:
+            if _reader is None:
+                logger.info("Initializing EasyOCR reader (first use)...")
+                _reader = easyocr.Reader(["en"], gpu=False)
+                logger.info("EasyOCR reader ready.")
+    return _reader
 
 
 def _normalize_path(path: str) -> str:
@@ -18,10 +35,8 @@ def _normalize_path(path: str) -> str:
 def _validate_image(image_path: str) -> None:
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
-
     if os.path.getsize(image_path) == 0:
         raise ValueError(f"Image is empty: {image_path}")
-
     if cv2.imread(image_path) is None:
         raise ValueError(f"Unable to decode image: {image_path}")
 
@@ -31,9 +46,10 @@ def extract_text(image_path: str) -> str:
     _validate_image(image_path)
 
     try:
-        # detail=1 always returns (bbox, text, confidence) regardless of paragraph mode.
-        # paragraph=False preserves per-word confidence so we can filter low-quality reads.
-        results = _reader.readtext(image_path, detail=1, paragraph=False)
+        # detail=1 + paragraph=False returns (bbox, text, confidence) for every
+        # detected word, allowing confidence filtering. paragraph=True omits the
+        # confidence value from the tuple, making filtering impossible.
+        results = _get_reader().readtext(image_path, detail=1, paragraph=False)
 
         texts = [
             text.strip()
