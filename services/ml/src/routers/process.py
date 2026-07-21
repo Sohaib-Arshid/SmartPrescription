@@ -1,12 +1,16 @@
-from traceback import format_exc
+import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from src.utils.image import download_image, cleanup_image
-from services.ml.src.services.preprocess.preprocess import preprocess_image
+from src.services.preprocess import preprocess_image
+from src.services.ocr.runner import run_ocr_pipeline
 from src.services.ocr.comparator import compare_ocr
-from services.ml.src.services.parser.groq import parse_prescription
+from src.services.ocr.fusion import fuse_ocr
+from src.services.groq import parse_prescription
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -22,42 +26,41 @@ def process(request: ProcessRequest):
     processed_image_path = None
 
     try:
-        # Step 1: Download image
         raw_image_path = download_image(request.imageUrl)
 
-        # Step 2: Preprocess image
         processed_image_path = preprocess_image(raw_image_path)
 
-        # Step 3: Run both OCR engines and choose the best
-        best_result = compare_ocr(processed_image_path)
+        candidates = run_ocr_pipeline(processed_image_path)
 
-        raw_text = best_result.text
+        if not candidates:
+            raise ValueError("No OCR result generated.")
 
-        print("\n==============================")
-        print(f"OCR Engine : {best_result.engine}")
-        print(f"OCR Score  : {best_result.score}")
-        print("==============================\n")
+        best_result = compare_ocr(candidates)
 
-        # Step 4: Send best OCR output to LLM
-        structured_data = parse_prescription(raw_text)
+        fused_text = fuse_ocr(candidates)
+
+        logger.info(
+            "Best OCR engine=%s variant=%s score=%s",
+            best_result.engine,
+            best_result.image_type,
+            best_result.score,
+        )
+
+        structured_data = parse_prescription(fused_text)
 
         return {
             "status": "success",
             "prescriptionId": request.prescriptionId,
             "ocrEngine": best_result.engine,
+            "ocrVariant": best_result.image_type,
             "ocrScore": best_result.score,
-            "rawText": raw_text,
+            "rawText": fused_text,
             "structuredData": structured_data,
         }
 
-    except Exception as e:
-        print(format_exc())
-
-        return {
-            "status": "failed",
-            "prescriptionId": request.prescriptionId,
-            "error": str(e),
-        }
+    except Exception as exc:
+        logger.exception("Prescription processing failed for id=%s", request.prescriptionId)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     finally:
         cleanup_image(raw_image_path)
