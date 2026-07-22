@@ -45,7 +45,15 @@ const uploadPrescription = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Failed to create prescription");
     }
 
-    await addPrescriptionJob(prescription._id, prescription.imageUrl)
+    try {
+        await addPrescriptionJob(prescription._id, prescription.imageUrl)
+    } catch (queueError) {
+        await Prescription.findByIdAndUpdate(prescription._id, {
+            status: "FAILED",
+            errorMessage: "Failed to queue processing job. Please retry."
+        })
+        throw new ApiError(500, "Failed to queue prescription for processing");
+    }
 
     return res
         .status(202)
