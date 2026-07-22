@@ -37,12 +37,15 @@ def _denoised_clahe(gray: np.ndarray) -> np.ndarray:
     return cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8)).apply(denoised)
 
 
-def _sauvola_threshold(gray: np.ndarray) -> np.ndarray:
-    blurred = cv2.GaussianBlur(gray, (15, 15), 0)
-    diff = cv2.subtract(gray, blurred)
-    norm = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
-    _, thresh = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return thresh
+def _local_adaptive(gray: np.ndarray) -> np.ndarray:
+    # Per-block local thresholding using Gaussian weighted mean — adapts to
+    # uneven illumination across the prescription page better than global Otsu.
+    return cv2.adaptiveThreshold(
+        gray, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        31, 10,
+    )
 
 
 def _save(save_dir: str, name: str, image: np.ndarray) -> str:
@@ -69,14 +72,14 @@ def generate_enhanced_images(image_path: str, save_dir: str) -> dict[str, str]:
         gray = image
 
     variants: dict[str, str] = {
-        "original":      image_path,
-        "clahe":         _save(save_dir, "v_clahe.jpg",         _clahe(gray)),
-        "bilateral":     _save(save_dir, "v_bilateral.jpg",     _bilateral(gray)),
-        "unsharp":       _save(save_dir, "v_unsharp.jpg",       _unsharp(gray)),
-        "gamma":         _save(save_dir, "v_gamma.jpg",         _gamma(gray)),
-        "otsu":          _save(save_dir, "v_otsu.jpg",          _otsu(gray)),
-        "denoised_clahe":_save(save_dir, "v_denoised_clahe.jpg",_denoised_clahe(gray)),
-        "sauvola":       _save(save_dir, "v_sauvola.jpg",       _sauvola_threshold(gray)),
+        "original":       image_path,
+        "clahe":          _save(save_dir, "v_clahe.jpg",          _clahe(gray)),
+        "bilateral":      _save(save_dir, "v_bilateral.jpg",      _bilateral(gray)),
+        "unsharp":        _save(save_dir, "v_unsharp.jpg",        _unsharp(gray)),
+        "gamma":          _save(save_dir, "v_gamma.jpg",          _gamma(gray)),
+        "otsu":           _save(save_dir, "v_otsu.jpg",           _otsu(gray)),
+        "denoised_clahe": _save(save_dir, "v_denoised_clahe.jpg", _denoised_clahe(gray)),
+        "local_adaptive": _save(save_dir, "v_local_adaptive.jpg", _local_adaptive(gray)),
     }
 
     logger.info("Generated %d enhanced variants", len(variants))

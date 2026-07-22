@@ -15,6 +15,15 @@ _WHITESPACE = re.compile(r"\s+")
 _NON_ALLOWED = re.compile(r"[^a-z0-9()%/.\- ]")
 _MG = re.compile(r"\d+\s?mg")
 _ML = re.compile(r"\d+\s?ml")
+_MCG = re.compile(r"\d+\s?mcg")
+
+# Split on newlines OR on sequences that look like medicine-name boundaries:
+# e.g. "Amoxicillin 500mg BD Ibuprofen 400mg" → two segments.
+# We split before a capitalized word that follows a dosage/frequency token.
+_SEGMENT_SPLIT = re.compile(
+    r"\n|(?<=\b(?:od|bd|tid|qid|hs|sos|mg|ml|mcg|days?|tab|cap)\b)\s+(?=[A-Z])",
+    re.IGNORECASE,
+)
 
 
 def _normalize(line: str) -> str:
@@ -37,7 +46,12 @@ def _line_score(line: str) -> int:
     score += sum(25 for w in MEDICINE_WORDS if w in lower)
     score += len(_MG.findall(lower)) * 20
     score += len(_ML.findall(lower)) * 20
+    score += len(_MCG.findall(lower)) * 20
     return score
+
+
+def _split_text(text: str) -> list[str]:
+    return [seg.strip() for seg in _SEGMENT_SPLIT.split(text) if seg.strip()]
 
 
 def fuse_ocr(candidates: list[OCRCandidate]) -> str:
@@ -45,10 +59,10 @@ def fuse_ocr(candidates: list[OCRCandidate]) -> str:
         return ""
 
     lines = [
-        line.strip()
+        seg
         for c in candidates
-        for line in c.text.splitlines()
-        if _is_useful(line.strip())
+        for seg in _split_text(c.text)
+        if _is_useful(seg)
     ]
 
     unique: list[str] = []
