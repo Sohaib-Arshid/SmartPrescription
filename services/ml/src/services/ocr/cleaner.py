@@ -32,6 +32,8 @@ _OCR_CHAR_FIXES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r'\bO\b(?=\s*\d)'), '0'),
     (re.compile(r'(?<=\d)\s*O\b'), '0'),
     (re.compile(r'(?<=\d)\s*l\b', re.IGNORECASE), '1'),
+    (re.compile(r'(?<=\d)o(?=m?g\b)', re.IGNORECASE), '0'),
+    (re.compile(r'(?<=\d)O(?=m?g\b)'), '0'),
 ]
 
 
