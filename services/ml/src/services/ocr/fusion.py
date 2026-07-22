@@ -1,37 +1,33 @@
+from __future__ import annotations
+
 import re
 from difflib import SequenceMatcher
 
 from src.services.ocr.runner import OCRCandidate
 
-SIMILARITY_THRESHOLD = 0.82
+_SIMILARITY_THRESHOLD = 0.82
 
-MEDICINE_WORDS = frozenset({
+_MEDICINE_WORDS = frozenset({
     "tab", "tablet", "cap", "capsule", "mg", "ml", "mcg",
     "syrup", "inj", "drop", "cream", "ointment",
     "od", "bd", "tid", "qid", "hs", "sos",
 })
 
-_WHITESPACE = re.compile(r"\s+")
-_NON_ALLOWED = re.compile(r"[^a-z0-9()%/.\- ]")
-_MG = re.compile(r"\d+\s?mg")
-_ML = re.compile(r"\d+\s?ml")
-_MCG = re.compile(r"\d+\s?mcg")
+_WHITESPACE = re.compile(r'\s+')
+_NORM_STRIP = re.compile(r'[^a-z0-9()/.\- ]')
+_MG = re.compile(r'\d+\s*mg', re.IGNORECASE)
+_ML = re.compile(r'\d+\s*ml', re.IGNORECASE)
+_MCG = re.compile(r'\d+\s*mcg', re.IGNORECASE)
+_FREQ = re.compile(r'\b(?:od|bd|tid|qid|hs|sos)\b', re.IGNORECASE)
 
-# Split on newlines OR on boundaries between a medicine line ending and the next
-# capitalized word. We detect this as: whitespace followed by a digit+word pattern
-# (dosage) OR a capitalized word that follows a word boundary after a space.
-# Using a lookahead instead of lookbehind avoids Python re's fixed-width restriction.
-_SEGMENT_SPLIT = re.compile(
-    r"\n|(?<=[ \t])(?=[A-Z][a-z]{2,})"
-)
+_LINE_SPLIT = re.compile(r'\n')
 
 
-def _normalize(line: str) -> str:
-    line = _WHITESPACE.sub(" ", line.lower())
-    return _NON_ALLOWED.sub("", line).strip()
+def _normalize(s: str) -> str:
+    return _NORM_STRIP.sub('', _WHITESPACE.sub(' ', s.lower())).strip()
 
 
-def _similar(a: str, b: str) -> float:
+def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
 
 
@@ -40,42 +36,58 @@ def _is_useful(line: str) -> bool:
     return len(line) >= 3 and sum(c.isalpha() for c in line) >= 2
 
 
-def _line_score(line: str) -> int:
+def _medical_weight(line: str) -> float:
     lower = line.lower()
-    score = len(line)
-    score += sum(25 for w in MEDICINE_WORDS if w in lower)
-    score += len(_MG.findall(lower)) * 20
-    score += len(_ML.findall(lower)) * 20
-    score += len(_MCG.findall(lower)) * 20
+    score = float(len(line))
+    score += sum(12.0 for w in _MEDICINE_WORDS if w in lower)
+    score += len(_MG.findall(lower)) * 20.0
+    score += len(_ML.findall(lower)) * 20.0
+    score += len(_MCG.findall(lower)) * 20.0
+    score += len(_FREQ.findall(lower)) * 15.0
     return score
 
 
-def _split_text(text: str) -> list[str]:
-    return [seg.strip() for seg in _SEGMENT_SPLIT.split(text) if seg.strip()]
+def _candidate_weight(candidate: OCRCandidate) -> float:
+    base = 1.0
+    if candidate.engine == "PaddleOCR" and candidate.words:
+        base = 0.5 + candidate.avg_confidence
+    elif candidate.engine == "EasyOCR":
+        base = 0.85
+    return base
+
+
+def _split_lines(text: str) -> list[str]:
+    return [seg.strip() for seg in _LINE_SPLIT.split(text) if seg.strip()]
 
 
 def fuse_ocr(candidates: list[OCRCandidate]) -> str:
     if not candidates:
         return ""
 
-    lines = [
-        seg
-        for c in candidates
-        for seg in _split_text(c.text)
-        if _is_useful(seg)
-    ]
+    weighted_lines: list[tuple[str, float]] = []
+    for candidate in candidates:
+        cw = _candidate_weight(candidate)
+        for line in _split_lines(candidate.text):
+            if _is_useful(line):
+                weighted_lines.append((line, cw))
 
     unique: list[str] = []
-    for line in lines:
+    unique_weights: list[float] = []
+
+    for line, weight in weighted_lines:
         matched_idx = next(
             (i for i, saved in enumerate(unique)
-             if _similar(line, saved) >= SIMILARITY_THRESHOLD),
+             if _similarity(line, saved) >= _SIMILARITY_THRESHOLD),
             None,
         )
         if matched_idx is None:
             unique.append(line)
-        elif _line_score(line) > _line_score(unique[matched_idx]):
-            unique[matched_idx] = line
+            unique_weights.append(weight * _medical_weight(line))
+        else:
+            new_score = weight * _medical_weight(line)
+            if new_score > unique_weights[matched_idx]:
+                unique[matched_idx] = line
+                unique_weights[matched_idx] = new_score
 
-    unique.sort(key=_line_score, reverse=True)
-    return "\n".join(unique)
+    paired = sorted(zip(unique_weights, unique), reverse=True)
+    return '\n'.join(line for _, line in paired)

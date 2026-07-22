@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from src.utils.image import download_image, cleanup_image
 from src.services.preprocess import preprocess_image
 from src.services.ocr import run_ocr_pipeline, compare_ocr, fuse_ocr
+from src.services.ocr.cleaner import clean_medical_text
+from src.services.ocr.dictionary import correct_medical_text
 from src.services.parser import parse_prescription
 from src.services.interaction.drug_interaction import check_interactions
 from src.services.reminder.scheduler import generate_reminders
@@ -45,13 +47,15 @@ def process(request: ProcessRequest):
 
         best = compare_ocr(candidates)
         fused_text = fuse_ocr(candidates)
+        cleaned_text = clean_medical_text(fused_text)
+        corrected_text = correct_medical_text(cleaned_text)
 
         logger.info(
             "Best result: engine=%s variant=%s score=%d",
             best.engine, best.image_type, best.score,
         )
 
-        structured_data: dict[str, Any] = parse_prescription(fused_text)
+        structured_data: dict[str, Any] = parse_prescription(corrected_text)
 
         medicines: list[dict[str, Any]] = structured_data.get("medicines") or []
         medicine_names = [m["name"] for m in medicines if m.get("name")]
@@ -68,7 +72,7 @@ def process(request: ProcessRequest):
             "ocrEngine": best.engine,
             "ocrVariant": best.image_type,
             "ocrScore": best.score,
-            "rawText": fused_text,
+            "rawText": corrected_text,
             "structuredData": structured_data,
             "drugInteractions": drug_interactions,
             "reminders": reminders,

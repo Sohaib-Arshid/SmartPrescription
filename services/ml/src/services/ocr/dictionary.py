@@ -41,10 +41,11 @@ _MEDICINES: list[str] = [
 ]
 
 _MEDICINE_LOWER: list[str] = [m.lower() for m in _MEDICINES]
+_MEDICINE_LOOKUP: dict[str, str] = {m.lower(): m for m in _MEDICINES}
 
 _MIN_TOKEN_LEN = 4
-_CORRECTION_THRESHOLD = 82.0
-_HIGH_CONFIDENCE_THRESHOLD = 92.0
+_CORRECTION_THRESHOLD = 0.82
+_HIGH_CONFIDENCE_THRESHOLD = 0.92
 
 _NON_ALPHA = re.compile(r"[^a-zA-Z\- ]")
 _MULTI_SPACE = re.compile(r" {2,}")
@@ -56,27 +57,26 @@ def _ascii_lower(s: str) -> str:
 
 def correct_word(token: str) -> tuple[str, float]:
     if len(token) < _MIN_TOKEN_LEN:
-        return token, 100.0
+        return token, 1.0
 
     token_lower = _ascii_lower(token)
 
-    if token_lower in _MEDICINE_LOWER:
-        idx = _MEDICINE_LOWER.index(token_lower)
-        return _MEDICINES[idx], 100.0
+    exact = _MEDICINE_LOOKUP.get(token_lower)
+    if exact is not None:
+        return exact, 1.0
 
     match = rf_process.extractOne(
         token_lower,
         _MEDICINE_LOWER,
         scorer=JaroWinkler.similarity,
-        score_cutoff=_CORRECTION_THRESHOLD / 100.0,
+        score_cutoff=_CORRECTION_THRESHOLD,
     )
 
     if match is None:
         return token, 0.0
 
-    best_lower, sim, idx = match
-    confidence = sim * 100.0
-    return _MEDICINES[idx], confidence
+    _best_lower, sim, idx = match
+    return _MEDICINES[idx], float(sim)
 
 
 def correct_medical_text(text: str) -> str:
@@ -95,8 +95,7 @@ def correct_medical_text(text: str) -> str:
         else:
             corrected.append(token)
 
-    result = " ".join(corrected)
-    return _MULTI_SPACE.sub(" ", result).strip()
+    return _MULTI_SPACE.sub(" ", " ".join(corrected)).strip()
 
 
 def normalize_medicine_name(name: str) -> str:
