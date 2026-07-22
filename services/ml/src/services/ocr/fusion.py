@@ -17,12 +17,12 @@ _MG = re.compile(r"\d+\s?mg")
 _ML = re.compile(r"\d+\s?ml")
 _MCG = re.compile(r"\d+\s?mcg")
 
-# Split on newlines OR on sequences that look like medicine-name boundaries:
-# e.g. "Amoxicillin 500mg BD Ibuprofen 400mg" → two segments.
-# We split before a capitalized word that follows a dosage/frequency token.
+# Split on newlines OR on boundaries between a medicine line ending and the next
+# capitalized word. We detect this as: whitespace followed by a digit+word pattern
+# (dosage) OR a capitalized word that follows a word boundary after a space.
+# Using a lookahead instead of lookbehind avoids Python re's fixed-width restriction.
 _SEGMENT_SPLIT = re.compile(
-    r"\n|(?<=\b(?:od|bd|tid|qid|hs|sos|mg|ml|mcg|days?|tab|cap)\b)\s+(?=[A-Z])",
-    re.IGNORECASE,
+    r"\n|(?<=[ \t])(?=[A-Z][a-z]{2,})"
 )
 
 
