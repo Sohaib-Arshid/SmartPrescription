@@ -54,7 +54,6 @@ def run_ocr_pipeline(image_path: str, save_dir: str) -> list[OCRCandidate]:
         if candidate:
             paddle_results.append(candidate)
 
-    # Select the top-N variants by text length for EasyOCR
     top_variants = sorted(paddle_results, key=lambda c: len(c.text), reverse=True)
     easy_targets = top_variants[:EASY_OCR_TOP_N]
 

@@ -1,4 +1,3 @@
-import gc
 import logging
 import os
 import traceback
@@ -80,8 +79,6 @@ def extract_text(image_path: str) -> str:
             # Remove duplicates while preserving order
             texts = list(dict.fromkeys(texts))
 
-            gc.collect()
-
             return " ".join(texts).strip()
 
         except Exception as e:
@@ -95,8 +92,6 @@ def extract_text(image_path: str) -> str:
             )
 
             traceback.print_exc()
-
-            gc.collect()
 
     raise RuntimeError(
         f"PaddleOCR failed after 2 attempts.\n"
