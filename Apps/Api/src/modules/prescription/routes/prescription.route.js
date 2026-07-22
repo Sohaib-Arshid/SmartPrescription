@@ -1,7 +1,6 @@
 import {Router} from "express"
 import { upload } from "../../../middlewares/multer.middleware.js"
 import { verifyJWT } from "../../../middlewares/auth.middleware.js"
-import { Prescription } from "../../../models/prescription.models.js"
 import {uploadPrescription , getPrescriptionStatus , conformPrescription , getAllPrescriptions , retry} from "../controllers/prescription.controller.js"
 
 const router = Router()

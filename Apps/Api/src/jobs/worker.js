@@ -10,38 +10,33 @@ const worker = new Worker(
         try {
             const { prescriptionId } = job.data;
 
-            const prescription = await Prescription.findById(prescriptionId);
+            const updatedPrescription = await Prescription.findByIdAndUpdate(
+                prescriptionId,
+                { status: "PROCESSING", progress: 20 },
+                { new: true }
+            );
 
-            if (!prescription) {
+            if (!updatedPrescription) {
                 throw new Error("Prescription not found");
             }
 
-            prescription.status = "PROCESSING";
-            prescription.progress = 20;
-
-            await prescription.save();
-
             const result = await processPrescription(
-                prescription.imageUrl,
-                prescription._id.toString()
+                updatedPrescription.imageUrl,
+                updatedPrescription._id.toString()
             );
 
-            prescription.rawText = result.rawText;
+            updatedPrescription.rawText = result.rawText;
+            updatedPrescription.parsedData = result.structuredData ?? null;
 
-            prescription.parsedData = result.parsedData
-            
-            if (result.parsedData?.medicines) {
-                prescription.medicines = result.parsedData.medicines;
+            if (result.structuredData?.medicines) {
+                updatedPrescription.medicines = result.structuredData.medicines;
             }
 
-            prescription.confidenceScore = result.confidenceScore ?? 1;
+            updatedPrescription.confidenceScore = result.structuredData?.overallConfidence ?? null;
+            updatedPrescription.status = "COMPLETED";
+            updatedPrescription.progress = 100;
 
-            prescription.status = "COMPLETED";
-            prescription.progress = 100;
-
-            await prescription.save();
-            console.log(result);
-            
+            await updatedPrescription.save();
 
             console.log("Prescription Processed Successfully");
         } catch (error) {
@@ -54,11 +49,14 @@ const worker = new Worker(
                 );
 
                 if (prescription) {
-                    prescription.status = "FAILED";
-                    prescription.errorMessage = error.message;
-                    prescription.retryCount += 1;
+                    const isLastAttempt = job.attemptsMade >= (job.opts?.attempts ?? 1);
 
-                    await prescription.save();
+                    if (isLastAttempt) {
+                        prescription.status = "FAILED";
+                        prescription.errorMessage = error.message;
+                        prescription.retryCount += 1;
+                        await prescription.save();
+                    }
                 }
             } catch (dbError) {
                 console.error("Failed to update DB:", dbError);

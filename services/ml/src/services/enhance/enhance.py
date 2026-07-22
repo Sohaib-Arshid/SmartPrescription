@@ -7,6 +7,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 _JPEG_PARAMS = [cv2.IMWRITE_JPEG_QUALITY, 95]
+_TOP_N = 6
 
 
 def _clahe(gray: np.ndarray) -> np.ndarray:
@@ -61,17 +62,12 @@ def _denoised_adaptive(gray: np.ndarray) -> np.ndarray:
     )
 
 
-def _laplacian_var(gray: np.ndarray) -> float:
-    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
-
-
 def _ocr_readability_score(gray: np.ndarray) -> float:
-    sharpness = _laplacian_var(gray)
+    sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
     mean_val = float(np.mean(gray))
     contrast = float(np.std(gray))
     brightness_penalty = abs(mean_val - 180) / 180.0
-    score = sharpness * (1.0 + contrast / 128.0) * (1.0 - 0.4 * brightness_penalty)
-    return score
+    return sharpness * (1.0 + contrast / 128.0) * (1.0 - 0.4 * brightness_penalty)
 
 
 def _save(save_dir: str, name: str, image: np.ndarray) -> str:
@@ -93,37 +89,35 @@ def generate_enhanced_images(image_path: str, save_dir: str) -> dict[str, str]:
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
 
-    candidates = {
-        "original":        (image_path, None),
-        "clahe":           (_save(save_dir, "v_clahe.jpg",           _clahe(gray)),           None),
-        "bilateral_clahe": (_save(save_dir, "v_bilateral_clahe.jpg", _bilateral_clahe(gray)), None),
-        "unsharp":         (_save(save_dir, "v_unsharp.jpg",         _unsharp(gray)),         None),
-        "gamma":           (_save(save_dir, "v_gamma.jpg",           _gamma(gray)),           None),
-        "otsu":            (_save(save_dir, "v_otsu.jpg",            _otsu(gray)),            None),
-        "local_adaptive":  (_save(save_dir, "v_local_adaptive.jpg",  _local_adaptive(gray)),  None),
-        "tophat":          (_save(save_dir, "v_tophat.jpg",          _tophat_enhanced(gray)), None),
-        "denoised_adaptive":(_save(save_dir, "v_denoised_adaptive.jpg", _denoised_adaptive(gray)), None),
-    }
+    # Score every variant in memory before touching disk.
+    # Only the top-N are written, avoiding unnecessary I/O.
+    candidates: list[tuple[str, np.ndarray, float]] = [
+        ("clahe",            _clahe(gray),            0.0),
+        ("bilateral_clahe",  _bilateral_clahe(gray),  0.0),
+        ("unsharp",          _unsharp(gray),          0.0),
+        ("gamma",            _gamma(gray),            0.0),
+        ("otsu",             _otsu(gray),             0.0),
+        ("local_adaptive",   _local_adaptive(gray),   0.0),
+        ("tophat",           _tophat_enhanced(gray),  0.0),
+        ("denoised_adaptive",_denoised_adaptive(gray),0.0),
+    ]
 
-    scored = {}
-    for name, (path, _) in candidates.items():
-        img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-        if img is not None:
-            scored[name] = (path, _ocr_readability_score(img))
+    scored: list[tuple[str, np.ndarray, float]] = [
+        (name, arr, _ocr_readability_score(arr))
+        for name, arr, _ in candidates
+    ]
 
-    ranked = sorted(scored.items(), key=lambda x: x[1][1], reverse=True)
-    top_names = {name for name, _ in ranked[:6]}
+    scored.sort(key=lambda x: x[2], reverse=True)
+    top = scored[:_TOP_N - 1]  # -1 to leave a slot for "original"
 
-    result: dict[str, str] = {}
-    for name, (path, score) in scored.items():
-        if name in top_names:
-            result[name] = path
+    result: dict[str, str] = {"original": image_path}
 
-    if "original" not in result:
-        result["original"] = image_path
+    for name, arr, score in top:
+        path = _save(save_dir, f"v_{name}.jpg", arr)
+        result[name] = path
 
     logger.info(
-        "Variants generated: %d total, %d selected by readability score",
+        "Variants: %d candidates scored, %d selected (top readability)",
         len(scored), len(result),
     )
     return result

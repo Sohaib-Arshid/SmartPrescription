@@ -1,9 +1,7 @@
 import { asyncHandler } from "../../../utils/AsyncHandler.js"
 import { ApiError } from "../../../utils/ApiError.js"
 import { ApiResponse } from "../../../utils/ApiResponse.js"
-import { User } from "../../../models/user.models.js"
 import { Prescription } from "../../../models/prescription.models.js"
-import jwt from "jsonwebtoken";
 import { uploadOnCloudinary } from "../../../utils/uploadOnCloudinary.js"
 import { addPrescriptionJob } from "../../../jobs/queue.js"
 
@@ -27,13 +25,23 @@ const uploadPrescription = asyncHandler(async (req, res) => {
     }
 
     const imageUrl = uploadFile?.url
+    const cloudinaryPublicId = uploadFile?.public_id
 
-    const prescription = await Prescription.create({
-        user: user._id,
-        imageUrl: imageUrl,
-    })
-
-    if (!prescription) {
+    let prescription
+    try {
+        prescription = await Prescription.create({
+            user: user._id,
+            imageUrl: imageUrl,
+        })
+    } catch (dbError) {
+        if (cloudinaryPublicId) {
+            try {
+                const { cloudinary } = await import("../../../config/cloudinary.js")
+                await cloudinary.uploader.destroy(cloudinaryPublicId)
+            } catch (_) {
+                // best-effort cleanup — do not mask the original error
+            }
+        }
         throw new ApiError(500, "Failed to create prescription");
     }
 
@@ -57,7 +65,7 @@ const uploadPrescription = asyncHandler(async (req, res) => {
 const getPrescriptionStatus = asyncHandler(async (req, res) => {
     const prescriptionId = req.params.id
     if (!prescriptionId) {
-        throw new ApiError(401, "prescriptionId not found")
+        throw new ApiError(400, "prescriptionId not found")
     }
 
     const user = req.user
@@ -94,7 +102,7 @@ const getPrescriptionStatus = asyncHandler(async (req, res) => {
 const conformPrescription = asyncHandler(async (req, res) => {
     const prescriptionId = req.params.id
     if (!prescriptionId) {
-        throw new ApiError(401, "prescriptionId not found")
+        throw new ApiError(400, "prescriptionId not found")
     }
 
     const user = req.user
@@ -143,6 +151,8 @@ const conformPrescription = asyncHandler(async (req, res) => {
 const getAllPrescriptions = asyncHandler(async (req, res) => {
     const userId = req.user._id
 
+    const ALLOWED_SORT_FIELDS = new Set(["createdAt", "updatedAt", "status"]);
+
     const {
         page = 1,
         limit = 10,
@@ -150,8 +160,12 @@ const getAllPrescriptions = asyncHandler(async (req, res) => {
         sortType = "desc"
     } = req.query
 
-    const pageNum = parseInt(page)
-    const limitNum = parseInt(limit)
+    if (!ALLOWED_SORT_FIELDS.has(sortBy)) {
+        throw new ApiError(400, "Invalid sortBy field");
+    }
+
+    const pageNum = Math.max(1, parseInt(page) || 1)
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10))
     const skip = (pageNum - 1) * limitNum
 
     const sortOrder = sortType === "asc" ? 1 : -1
@@ -185,7 +199,7 @@ const getAllPrescriptions = asyncHandler(async (req, res) => {
 const retry = asyncHandler(async (req, res) => {
     const prescriptionId = req.params.id
     if (!prescriptionId) {
-        throw new ApiError(401, "prescriptionId not found")
+        throw new ApiError(400, "prescriptionId not found")
     }
 
     const user = req.user
@@ -206,7 +220,11 @@ const retry = asyncHandler(async (req, res) => {
         throw new ApiError(403, "Unauthorized")
     }
 
-    if (prescription.status === "COMPLETED" || prescription.status === "PENDING") {
+    if (
+        prescription.status === "COMPLETED" ||
+        prescription.status === "PENDING" ||
+        prescription.status === "PROCESSING"
+    ) {
         throw new ApiError(400, "Only failed prescriptions can be retried")
     }
 

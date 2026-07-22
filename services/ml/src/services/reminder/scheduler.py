@@ -5,8 +5,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Standard reminder times for each frequency abbreviation.
-# Times are in HH:MM 24-hour format.
 _FREQUENCY_SCHEDULES: dict[str, list[str]] = {
     "OD":  ["08:00"],
     "BD":  ["08:00", "20:00"],
@@ -33,7 +31,6 @@ def generate_reminders(medicines: list[dict[str, Any]]) -> list[dict[str, Any]]:
         times = _FREQUENCY_SCHEDULES.get(frequency)
 
         if times is None:
-            # Unknown abbreviation — try to infer from descriptive text
             times = _infer_times(frequency_raw)
 
         for time in times:
