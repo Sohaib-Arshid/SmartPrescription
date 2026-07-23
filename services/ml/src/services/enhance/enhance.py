@@ -3,11 +3,21 @@ import os
 
 import cv2
 import numpy as np
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
 _JPEG_PARAMS = [cv2.IMWRITE_JPEG_QUALITY, 95]
-_TOP_N = 6
+_TOP_N = 3  # RAM budget: each 960px variant needs ~35 MB as float32 in PaddleOCR
+_SAFE_READ_MAX_DIM = 2000
+
+
+def _safe_imread(image_path: str) -> np.ndarray:
+    with Image.open(image_path) as pil_img:
+        if max(pil_img.size) > _SAFE_READ_MAX_DIM:
+            pil_img.thumbnail((_SAFE_READ_MAX_DIM, _SAFE_READ_MAX_DIM), Image.LANCZOS)
+        arr = np.array(pil_img.convert("RGB"), dtype=np.uint8)
+    return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
 
 
 def _clahe(gray: np.ndarray) -> np.ndarray:
@@ -81,7 +91,7 @@ def generate_enhanced_images(image_path: str, save_dir: str) -> dict[str, str]:
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
 
-    image = cv2.imread(image_path)
+    image = _safe_imread(image_path)
     if image is None:
         raise ValueError("Unable to load image.")
 

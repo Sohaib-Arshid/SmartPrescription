@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,37 @@ class PreprocessConfig:
 
 DEFAULT_CONFIG = PreprocessConfig()
 
+# Hard cap applied before cv2.imread so we never attempt to decompress a
+# 5100×6600 (96 MB) scan straight into RAM.  PIL.Image.thumbnail() uses
+# a streaming JPEG decoder and only decompresses to the requested size,
+# so RAM usage stays proportional to the *output* not the original.
+_SAFE_READ_MAX_DIM = 1200
+
+
+def _safe_imread(image_path: str) -> np.ndarray:
+    """
+    Load an image safely regardless of its original resolution.
+
+    PIL reads JPEG headers, determines original size, and downscales
+    during decode (JPEG DCT shortcuts).  Only then is the result
+    converted to a numpy BGR array for cv2.  This avoids the
+    cv2.imread() OOM crash on high-DPI scans (e.g. 5100×6600 @ 300 DPI).
+    """
+    with Image.open(image_path) as pil_img:
+        w, h = pil_img.size
+        if max(w, h) > _SAFE_READ_MAX_DIM:
+            logger.info(
+                "Large image detected (%dx%d). Downscaling to max_dim=%d before decode.",
+                w, h, _SAFE_READ_MAX_DIM,
+            )
+            # thumbnail() modifies in-place and preserves aspect ratio
+            pil_img.thumbnail((_SAFE_READ_MAX_DIM, _SAFE_READ_MAX_DIM), Image.LANCZOS)
+
+        # Ensure BGR for cv2 compatibility
+        pil_rgb = pil_img.convert("RGB")
+        arr = np.array(pil_rgb, dtype=np.uint8)
+        return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+
 
 def preprocess_image(
     image_path: str,
@@ -31,7 +63,7 @@ def preprocess_image(
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
 
-    image = cv2.imread(image_path)
+    image = _safe_imread(image_path)
     if image is None:
         raise ValueError(f"Unable to read image: {image_path}")
 
