@@ -6,7 +6,7 @@ const uploadOnCloudinary = async (localfile) => {
 
     try {
         const result = await cloudinary.uploader.upload(localfile)
-
+        console.log(result)
         fs.unlinkSync(localfile)
         return result
     } catch (error) {
