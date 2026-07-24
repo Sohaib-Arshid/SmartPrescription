@@ -9,36 +9,6 @@ from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
-
-# ── PaddlePaddle 3.1.1 + PaddleOCR 3.2.0 on Windows: PIR executor crash ──────
-#
-# ROOT CAUSE (confirmed via FLAGS_enable_pir_api test):
-#
-# PP-OCRv5_mobile_rec uses an SVTR (Sequence Vision Transformer) architecture
-# exported in New IR (PIR) format — inference.json uses the "1.xxx" op prefix
-# which marks it as a PIR graph, not the legacy "0.xxx" format.
-#
-# PaddlePaddle 3.1.1's PIR executor on Windows has a known bug where
-# self.predictor.run() throws RuntimeError: Unknown exception when the
-# model graph contains dynamic-shape attention operations (the SVTR encoder
-# in PP-OCRv5_mobile_rec has variable-length sequence attention with shapes
-# like [-1, 8, -1, -1] that change on every inference call).
-#
-# The New IR executor attempts to apply shape-optimization passes at runtime
-# that are incompatible with Windows's memory allocator for dynamic shapes,
-# producing an unhandled C++ exception that crosses the pybind11 boundary as
-# RuntimeError: Unknown exception.
-#
-# EVIDENCE:
-#   - inference.json op prefixes are all "1.xxx" (New IR format)
-#   - Setting FLAGS_enable_pir_api=0 before model load → 58 regions, no crash
-#   - NOT in NEWIR_BLOCKLIST (PaddleX 3.2.0 did not add it)
-#   - NOT in MKLDNN_BLOCKLIST (unrelated to MKL-DNN)
-#   - Crash is intermittent because Windows memory fragmentation varies
-#
-# FIX: Disable PIR execution flags before PaddleOCR is initialized.
-# These flags must be set before paddle.inference.create_predictor() is called,
-# which happens inside PaddleOCR.__init__(), so they must be set at module load.
 os.environ.setdefault("FLAGS_enable_pir_api", "0")
 os.environ.setdefault("FLAGS_pir_apply_shape_optimization_pass", "0")
 
@@ -58,13 +28,6 @@ _ocr = PaddleOCR(
 )
 
 _MIN_SCORE = 0.35
-
-# PP-OCRv5_mobile_det uses limit_side_len=960 internally.
-# However on machines with limited RAM (~1-2 GB total), PaddleOCR's NormalizeImage
-# transform allocates float32 buffers (4× uint8 size) that cannot be satisfied
-# even at 960px when system RAM is fragmented at 96%+ usage.
-# At 480px: float32 buffer = ~2 MB  → fits even in heavily fragmented RAM.
-# OCR accuracy is preserved: text characters are 20-40px tall at this resolution.
 _PADDLE_MAX_DIM = 480
 
 

@@ -8,11 +8,6 @@ import easyocr
 logger = logging.getLogger(__name__)
 
 MIN_CONFIDENCE = 0.35
-
-# Lazy singleton — EasyOCR takes 30+ seconds and ~500 MB to initialize.
-# Loading it at import time would block FastAPI startup and, when combined
-# with PaddleOCR loading simultaneously, causes OpenBLAS OOM on CPU-only
-# machines. We initialize on first use and protect with a lock.
 _reader: easyocr.Reader | None = None
 _reader_lock = threading.Lock()
 

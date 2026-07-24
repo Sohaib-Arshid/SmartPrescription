@@ -109,4 +109,21 @@ def run_ocr_pipeline(image_path: str, save_dir: str) -> list[OCRCandidate]:
         "OCR pipeline: %d paddle + %d easy = %d total",
         len(paddle_results), len(easy_results), len(all_results),
     )
+
+    print("\n" + "=" * 70)
+    print("OCR RESULTS")
+    print("=" * 70)
+
+    for candidate in all_results:
+        print(f"\nImage Type     : {candidate.image_type}")
+        print(f"Engine         : {candidate.engine}")
+        print(f"Confidence     : {candidate.avg_confidence:.2f}")
+        print(f"Medical Score  : {candidate.medical_score:.0f}")
+        print("-" * 70)
+        print(candidate.text)
+        print("-" * 70)
+
+    print("=" * 70)
+    print("OCR PIPELINE COMPLETED")
+    print("=" * 70)
     return all_results
